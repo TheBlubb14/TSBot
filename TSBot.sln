@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.28010.2026
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TSBot", "TSBot\TSBot.csproj", "{B196DB87-AB6B-470F-A944-AC507FBA9569}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TS3Client", "..\..\..\GitHub\Projects\TS3AudioBot\TS3Client\TS3Client.csproj", "{719F8141-526B-42D0-9718-19FC95FD261B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{B196DB87-AB6B-470F-A944-AC507FBA9569}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B196DB87-AB6B-470F-A944-AC507FBA9569}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B196DB87-AB6B-470F-A944-AC507FBA9569}.Release|Any CPU.Build.0 = Release|Any CPU
+		{719F8141-526B-42D0-9718-19FC95FD261B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{719F8141-526B-42D0-9718-19FC95FD261B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{719F8141-526B-42D0-9718-19FC95FD261B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{719F8141-526B-42D0-9718-19FC95FD261B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
