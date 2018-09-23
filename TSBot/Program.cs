@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Linq;
+using System.Text;
+using Telegram.Bot;
 using TS3Client;
 using TS3Client.Full;
+using TS3Client.Messages;
 
 namespace TSBot
 {
@@ -9,6 +12,7 @@ namespace TSBot
     {
         private static Ts3FullClient client;
         private static ConnectionDataFull connectionData;
+        private static TelegramBotClient bot;
         private static readonly Config config = new Config(@"..\..\..\secret.json");
 
         static void Main(string[] args)
@@ -23,6 +27,63 @@ namespace TSBot
 
             Console.WriteLine("Config successfully loaded");
 
+            InitTelegram();
+            Console.WriteLine("Loaded Telegram Bot");
+
+            InitTS();
+            Console.WriteLine("Loaded TS");
+
+
+            Console.ReadLine();
+            //ListUsers();
+            DisposeTelegram();
+            DisposeTS();
+            Console.ReadLine();
+
+        }
+
+        private static void InitTelegram()
+        {
+            bot = new TelegramBotClient(config.Secret.TelegramAPIKey);
+            bot.OnMessage += Bot_OnMessage;
+
+            bot.StartReceiving();
+        }
+
+        private static void DisposeTelegram()
+        {
+            bot.StopReceiving();
+        }
+
+        private static void Bot_OnMessage(object sender, Telegram.Bot.Args.MessageEventArgs e)
+        {
+            var msg = e.Message.Text.Trim();
+            var onlineCommand = "/online";
+            var onlineCommandWithPassword = $"/online {config.Secret.BotPassword}".Trim();
+
+            if (e.Message.Text.StartsWith(onlineCommand, StringComparison.OrdinalIgnoreCase))
+            {
+                if (e.Message.Text.Equals(onlineCommandWithPassword, StringComparison.OrdinalIgnoreCase))
+                {
+                    var builder = new StringBuilder();
+                    foreach (var item in ListUsers().GroupBy(x => client.ChannelInfo(x.ChannelId).Unwrap().Name))
+                    {
+                        builder.AppendLine($"{item.Key}:");
+                        item.ForEach(x => builder.AppendLine(x.Name));
+                        builder.AppendLine("");
+                    }
+
+                    bot.SendTextMessageAsync(e.Message.Chat.Id, builder.ToString().TrimEnd('\r', '\n'));
+                }
+                else
+                {
+                    bot.SendTextMessageAsync(e.Message.Chat.Id, "Falsches Passwort übergeben.");
+                }
+            }
+        }
+
+        private static void InitTS()
+        {
             var identityData = Ts3Crypt.DeobfuscateAndImportTs3Identity(config.Secret.TSIdentity);
 
             if (!string.IsNullOrEmpty(identityData.Error))
@@ -57,18 +118,24 @@ namespace TSBot
                 client.OnErrorEvent += client_OnErrorEvent;
                 client.OnEachTextMessage += client_OnEachTextMessage;
                 client.OnClientEnterView += Client_OnClientEnterView;
+
+                client.OnEachClientMoved += Client_OnEachClientMoved;
+
                 client.Connect(connectionData);
             }
+        }
 
-            Console.ReadLine();
-            ListUsers();
+        private static void Client_OnEachClientMoved(object sender, ClientMoved e)
+        {
+        }
 
-            Console.ReadLine();
+        public static void DisposeTS()
+        {
             client.Disconnect();
             client.Dispose();
         }
 
-        private static void Client_OnClientEnterView(object sender, System.Collections.Generic.IEnumerable<TS3Client.Messages.ClientEnterView> e)
+        private static void Client_OnClientEnterView(object sender, System.Collections.Generic.IEnumerable<ClientEnterView> e)
         {
             e.Where(x => x.ClientType != ClientType.Query)
                  .OrderBy(x => x.TargetChannelId)
@@ -81,32 +148,35 @@ namespace TSBot
             Console.WriteLine("Connected");
         }
 
-        private static void client_OnDisconnected(object sender, TS3Client.DisconnectEventArgs e)
+        private static void client_OnDisconnected(object sender, DisconnectEventArgs e)
         {
             Console.WriteLine("Disconnected");
         }
 
-        private static void client_OnErrorEvent(object sender, TS3Client.Messages.CommandError e)
+        private static void client_OnErrorEvent(object sender, CommandError e)
         {
             Console.WriteLine($"[Error] {e.Message}");
         }
 
-        private static void client_OnEachTextMessage(object sender, TS3Client.Messages.TextMessage e)
+        private static void client_OnEachTextMessage(object sender, TextMessage e)
         {
             Console.WriteLine($"[Message] {e.InvokerName}: {e.Message}");
         }
 
-        private static void ListUsers()
+        private static IOrderedEnumerable<ClientData> ListUsers()
         {
             var clientList = client.ClientList();
 
             if (clientList.Ok)
             {
-                clientList
+                return clientList
                     .Unwrap()
                     .Where(x => x.ClientType != ClientType.Query)
-                    .OrderBy(x => x.ChannelId)
-                    .ForEach(x => Console.WriteLine($"[{x.ChannelId}] {x.Name}"));
+                    .OrderBy(x => x.ChannelId);
+            }
+            else
+            {
+                return default;
             }
         }
     }

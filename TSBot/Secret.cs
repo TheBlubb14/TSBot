@@ -16,5 +16,7 @@
         public string TSDefaultChannel { get; set; }
 
         public string TSDefaultChannelPassword { get; set; }
+
+        public string BotPassword { get; set; }
     }
 }
