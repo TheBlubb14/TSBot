@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Telegram.Bot;
 using TS3Client;
 using TS3Client.Full;
 using TS3Client.Messages;
+using TSBot.Command;
+using TSBot.Command.TS;
 using TSBot.DB;
 
 namespace TSBot
@@ -16,6 +19,8 @@ namespace TSBot
         private static TelegramBotClient bot;
         private static DatabaseContext database;
         private static readonly Config config = new Config(@"..\..\..\secret.json");
+
+        private static IEnumerable<ITSCommand> TSCommands;
 
         static void Main(string[] args)
         {
@@ -38,13 +43,14 @@ namespace TSBot
             InitTS();
             Console.WriteLine("Loaded TS");
 
+            TSCommands = CommandHelper.GetCommands<ITSCommand>();
+            Console.WriteLine("Loaded Commands");
 
             Console.ReadLine();
             //ListUsers();
             DisposeTelegram();
             DisposeTS();
             Console.ReadLine();
-
         }
 
         private static void InitDatabase()
@@ -182,64 +188,11 @@ namespace TSBot
             if (!(e.NotifyType == NotificationType.TextMessage && e.Target == TextMessageTargetMode.Private) || e.InvokerId == client.ClientId)
                 return;
 
-            if (e.Message.Equals("!show"))
+            TSCommands.ForEach(x =>
             {
-                var user = database.TSUser.FirstOrDefault(x => x.UID == e.InvokerUid);
-
-                if (user == null)
-                    user = database.TSUser.Add(new TSUser(e.InvokerUid, e.InvokerName)).Entity;
-
-                if (user.Accepted)
-                {
-                    client.SendMessage("Du schon hast akzeptiert. Mit !no kannst du wiedersprechen.", TextMessageTargetMode.Private, e.InvokerId);
-                }
-                else if (!user.Accepted)
-                {
-                    client.SendMessage("Du wirst von dem BlubbBot aufgezeichnet. Du trittst alle deine Rechte an den Bot ab." + Environment.NewLine +
-                        "Bestätige dies mit !yes oder verneine es mit !no", TextMessageTargetMode.Private, e.InvokerId);
-                }
-
-                database.SaveChanges();
-            }
-            else if (e.Message.Equals("!yes"))
-            {
-                var user = database.TSUser.FirstOrDefault(x => x.UID == e.InvokerUid);
-
-                if (user == null)
-                    return;
-
-                if (user.Accepted)
-                {
-                    client.SendMessage("Du schon hast akzeptiert. Mit !no kannst du wiedersprechen.", TextMessageTargetMode.Private, e.InvokerId);
-                }
-                else
-                {
-                    user.Accepted = true;
-                    client.SendMessage("Du hast akzeptiert. Mit !no kannst du wiedersprechen.", TextMessageTargetMode.Private, e.InvokerId);
-                }
-
-                database.SaveChanges();
-            }
-            else if (e.Message.Equals("!no"))
-            {
-                var user = database.TSUser.FirstOrDefault(x => x.UID == e.InvokerUid);
-
-                if (user == null)
-                    return;
-
-                if (user.Accepted)
-                {
-                    
-                client.SendMessage("Du dein Einverständnis widersprochen.", TextMessageTargetMode.Private, e.InvokerId);
-                }
-                else
-                {
-                    client.SendMessage("Du hast wiedersprochen.", TextMessageTargetMode.Private, e.InvokerId);
-                }
-
-                database.TSUser.Remove(user);
-                database.SaveChanges();
-            }
+                if (e.Message.StartsWith($"!{x.Command}", StringComparison.OrdinalIgnoreCase))
+                    x.Execute().Invoke(database, client, e);
+            });
 
             Console.WriteLine($"[Message] {e.InvokerName}: {e.Message}");
         }
@@ -253,7 +206,7 @@ namespace TSBot
                 return clientList
                     .Unwrap()
                     .Where(x => x.ClientType != ClientType.Query)
-                    //.Where(x => database.TSUser.Any(y => y.Accepted && y.UID == x.Uid))
+                    //.Where(x => database.TSUser.Find(x.Uid)?.Accepted ?? false) // bot need more rights
                     .OrderBy(x => x.ChannelId);
             }
             else
