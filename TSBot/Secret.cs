@@ -18,5 +18,7 @@
         public string TSDefaultChannelPassword { get; set; }
 
         public string BotPassword { get; set; }
+
+        public string DatabasePath { get; set; }
     }
 }

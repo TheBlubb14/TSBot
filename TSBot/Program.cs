@@ -5,6 +5,7 @@ using Telegram.Bot;
 using TS3Client;
 using TS3Client.Full;
 using TS3Client.Messages;
+using TSBot.DB;
 
 namespace TSBot
 {
@@ -13,6 +14,7 @@ namespace TSBot
         private static Ts3FullClient client;
         private static ConnectionDataFull connectionData;
         private static TelegramBotClient bot;
+        private static DatabaseContext database;
         private static readonly Config config = new Config(@"..\..\..\secret.json");
 
         static void Main(string[] args)
@@ -27,6 +29,9 @@ namespace TSBot
 
             Console.WriteLine("Config successfully loaded");
 
+            InitDatabase();
+            Console.WriteLine("Loaded DB");
+
             InitTelegram();
             Console.WriteLine("Loaded Telegram Bot");
 
@@ -40,6 +45,19 @@ namespace TSBot
             DisposeTS();
             Console.ReadLine();
 
+        }
+
+        private static void InitDatabase()
+        {
+            if (string.IsNullOrEmpty(config.Secret.DatabasePath))
+            {
+                Console.WriteLine("DatabasePath is empty");
+                return;
+            }
+
+            database = new DatabaseContext(config.Secret.DatabasePath);
+            SQLitePCL.Batteries.Init();
+            database.Database.EnsureCreated();
         }
 
         private static void InitTelegram()
@@ -160,6 +178,69 @@ namespace TSBot
 
         private static void client_OnEachTextMessage(object sender, TextMessage e)
         {
+
+            if (!(e.NotifyType == NotificationType.TextMessage && e.Target == TextMessageTargetMode.Private) || e.InvokerId == client.ClientId)
+                return;
+
+            if (e.Message.Equals("!show"))
+            {
+                var user = database.TSUser.FirstOrDefault(x => x.UID == e.InvokerUid);
+
+                if (user == null)
+                    user = database.TSUser.Add(new TSUser(e.InvokerUid, e.InvokerName)).Entity;
+
+                if (user.Accepted)
+                {
+                    client.SendMessage("Du schon hast akzeptiert. Mit !no kannst du wiedersprechen.", TextMessageTargetMode.Private, e.InvokerId);
+                }
+                else if (!user.Accepted)
+                {
+                    client.SendMessage("Du wirst von dem BlubbBot aufgezeichnet. Du trittst alle deine Rechte an den Bot ab." + Environment.NewLine +
+                        "Bestätige dies mit !yes oder verneine es mit !no", TextMessageTargetMode.Private, e.InvokerId);
+                }
+
+                database.SaveChanges();
+            }
+            else if (e.Message.Equals("!yes"))
+            {
+                var user = database.TSUser.FirstOrDefault(x => x.UID == e.InvokerUid);
+
+                if (user == null)
+                    return;
+
+                if (user.Accepted)
+                {
+                    client.SendMessage("Du schon hast akzeptiert. Mit !no kannst du wiedersprechen.", TextMessageTargetMode.Private, e.InvokerId);
+                }
+                else
+                {
+                    user.Accepted = true;
+                    client.SendMessage("Du hast akzeptiert. Mit !no kannst du wiedersprechen.", TextMessageTargetMode.Private, e.InvokerId);
+                }
+
+                database.SaveChanges();
+            }
+            else if (e.Message.Equals("!no"))
+            {
+                var user = database.TSUser.FirstOrDefault(x => x.UID == e.InvokerUid);
+
+                if (user == null)
+                    return;
+
+                if (user.Accepted)
+                {
+                    
+                client.SendMessage("Du dein Einverständnis widersprochen.", TextMessageTargetMode.Private, e.InvokerId);
+                }
+                else
+                {
+                    client.SendMessage("Du hast wiedersprochen.", TextMessageTargetMode.Private, e.InvokerId);
+                }
+
+                database.TSUser.Remove(user);
+                database.SaveChanges();
+            }
+
             Console.WriteLine($"[Message] {e.InvokerName}: {e.Message}");
         }
 
@@ -172,6 +253,7 @@ namespace TSBot
                 return clientList
                     .Unwrap()
                     .Where(x => x.ClientType != ClientType.Query)
+                    //.Where(x => database.TSUser.Any(y => y.Accepted && y.UID == x.Uid))
                     .OrderBy(x => x.ChannelId);
             }
             else
