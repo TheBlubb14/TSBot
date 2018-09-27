@@ -90,7 +90,15 @@ namespace TSBot
                 if (e.Message.Text.Equals(onlineCommandWithPassword, StringComparison.OrdinalIgnoreCase))
                 {
                     var builder = new StringBuilder();
-                    var users = ListUsers()?.GroupBy(x => client.ChannelInfo(x.ChannelId).Unwrap().Name);
+                    var users = ListUsers()?.GroupBy(x =>
+                    {
+                        var y = client.ChannelInfo(x.ChannelId);
+
+                        if (y.Ok)
+                            return y.Unwrap().Name;
+                        else
+                            return default;
+                    });
 
                     if (users == null || users.Count() == 0)
                     {
@@ -198,7 +206,7 @@ namespace TSBot
 
             TSCommands.ForEach(x =>
             {
-                if (e.Message.StartsWith($"!{x.Command}", StringComparison.OrdinalIgnoreCase))
+                if (e.Message.StartsWith(x.BuildCommand(), StringComparison.OrdinalIgnoreCase))
                     x.Execute().Invoke(database, client, e);
             });
 
