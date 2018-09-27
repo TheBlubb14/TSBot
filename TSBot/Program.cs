@@ -90,7 +90,15 @@ namespace TSBot
                 if (e.Message.Text.Equals(onlineCommandWithPassword, StringComparison.OrdinalIgnoreCase))
                 {
                     var builder = new StringBuilder();
-                    foreach (var item in ListUsers().GroupBy(x => client.ChannelInfo(x.ChannelId).Unwrap().Name))
+                    var users = ListUsers()?.GroupBy(x => client.ChannelInfo(x.ChannelId).Unwrap().Name);
+
+                    if (users == null || users.Count() == 0)
+                    {
+                        bot.SendTextMessageAsync(e.Message.Chat.Id, "Keiner online.");
+                        return;
+                    }
+
+                    foreach (var item in users)
                     {
                         builder.AppendLine($"{item.Key}:");
                         item.ForEach(x => builder.AppendLine(x.Name));
@@ -197,17 +205,20 @@ namespace TSBot
             Console.WriteLine($"[Message] {e.InvokerName}: {e.Message}");
         }
 
-        private static IOrderedEnumerable<ClientData> ListUsers()
+        private static IOrderedEnumerable<ClientDbData> ListUsers()
         {
             var clientList = client.ClientList();
 
             if (clientList.Ok)
             {
                 return clientList
-                    .Unwrap()
-                    .Where(x => x.ClientType != ClientType.Query)
-                    //.Where(x => database.TSUser.Find(x.Uid)?.Accepted ?? false) // bot need more rights
-                    .OrderBy(x => x.ChannelId);
+                   .Unwrap()
+                   .Where(x => x.ClientType != ClientType.Query)
+                   .Select(x => client.ClientDbInfo(x.ClientId))
+                   .Where(x => x.Ok)
+                   .Select(x => x.Unwrap())
+                   .Where(x => database.TSUser.Find(x.Uid)?.Accepted ?? false)
+                   .OrderBy(x => x.ChannelId);
             }
             else
             {
