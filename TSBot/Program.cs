@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using Telegram.Bot;
 using TS3Client;
 using TS3Client.Full;
 using TS3Client.Messages;
 using TSBot.Command;
+using TSBot.Command.Telegram;
 using TSBot.Command.TS;
 using TSBot.DB;
+using TSBot.Extension;
 
 namespace TSBot
 {
@@ -21,6 +22,9 @@ namespace TSBot
         private static readonly Config config = new Config(@"..\..\..\secret.json");
 
         private static IEnumerable<ITSCommand> TSCommands;
+        private static IEnumerable<ITelegramCommand> TelegramCommands;
+
+        private static bool BotPasswordUsed = false;
 
         static void Main(string[] args)
         {
@@ -32,10 +36,15 @@ namespace TSBot
                 Console.ReadKey();
             }
 
+            BotPasswordUsed = !string.IsNullOrEmpty(config.Secret.BotPassword);
             Console.WriteLine("Config successfully loaded");
 
             InitDatabase();
             Console.WriteLine("Loaded DB");
+
+            TelegramCommands = CommandHelper.GetCommands<ITelegramCommand>();
+            TSCommands = CommandHelper.GetCommands<ITSCommand>();
+            Console.WriteLine("Loaded Commands");
 
             InitTelegram();
             Console.WriteLine("Loaded Telegram Bot");
@@ -43,14 +52,10 @@ namespace TSBot
             InitTS();
             Console.WriteLine("Loaded TS");
 
-            TSCommands = CommandHelper.GetCommands<ITSCommand>();
-            Console.WriteLine("Loaded Commands");
-
             Console.ReadLine();
-            //ListUsers();
+            
             DisposeTelegram();
             DisposeTS();
-            Console.ReadLine();
         }
 
         private static void InitDatabase()
@@ -81,45 +86,14 @@ namespace TSBot
 
         private static void Bot_OnMessage(object sender, Telegram.Bot.Args.MessageEventArgs e)
         {
-            var msg = e.Message.Text.Trim();
-            var onlineCommand = "/online";
-            var onlineCommandWithPassword = $"/online {config.Secret.BotPassword}".Trim();
+            if (!client.Connected)
+                return;
 
-            if (e.Message.Text.StartsWith(onlineCommand, StringComparison.OrdinalIgnoreCase))
+            TelegramCommands.ForEach(x =>
             {
-                if (e.Message.Text.Equals(onlineCommandWithPassword, StringComparison.OrdinalIgnoreCase))
-                {
-                    var builder = new StringBuilder();
-                    var users = ListUsers()?.GroupBy(x =>
-                    {
-                        var y = client.ChannelInfo(x.ChannelId);
-
-                        if (y.Ok)
-                            return y.Unwrap().Name;
-                        else
-                            return default;
-                    });
-
-                    if (users == null || users.Count() == 0)
-                    {
-                        bot.SendTextMessageAsync(e.Message.Chat.Id, "Keiner online.");
-                        return;
-                    }
-
-                    foreach (var item in users)
-                    {
-                        builder.AppendLine($"{item.Key}:");
-                        item.ForEach(x => builder.AppendLine(x.Name));
-                        builder.AppendLine("");
-                    }
-
-                    bot.SendTextMessageAsync(e.Message.Chat.Id, builder.ToString().TrimEnd('\r', '\n'));
-                }
-                else
-                {
-                    bot.SendTextMessageAsync(e.Message.Chat.Id, "Falsches Passwort übergeben.");
-                }
-            }
+                if (e.Message.Text.Trim().StartsWith(x.BuildCommand() + (BotPasswordUsed ? " " + config.Secret.BotPassword : ""), StringComparison.OrdinalIgnoreCase))
+                    x.Execute().Invoke(database, bot, e.Message, client);
+            });
         }
 
         private static void InitTS()
@@ -200,38 +174,16 @@ namespace TSBot
 
         private static void client_OnEachTextMessage(object sender, TextMessage e)
         {
-
             if (!(e.NotifyType == NotificationType.TextMessage && e.Target == TextMessageTargetMode.Private) || e.InvokerId == client.ClientId)
                 return;
 
             TSCommands.ForEach(x =>
             {
-                if (e.Message.StartsWith(x.BuildCommand(), StringComparison.OrdinalIgnoreCase))
+                if (e.Message.Trim().StartsWith(x.BuildCommand(), StringComparison.OrdinalIgnoreCase))
                     x.Execute().Invoke(database, client, e);
             });
 
             Console.WriteLine($"[Message] {e.InvokerName}: {e.Message}");
-        }
-
-        private static IOrderedEnumerable<ClientDbData> ListUsers()
-        {
-            var clientList = client.ClientList();
-
-            if (clientList.Ok)
-            {
-                return clientList
-                   .Unwrap()
-                   .Where(x => x.ClientType != ClientType.Query)
-                   .Select(x => client.ClientDbInfo(x.ClientId))
-                   .Where(x => x.Ok)
-                   .Select(x => x.Unwrap())
-                   .Where(x => database.TSUser.Find(x.Uid)?.Accepted ?? false)
-                   .OrderBy(x => x.ChannelId);
-            }
-            else
-            {
-                return default;
-            }
         }
     }
 }

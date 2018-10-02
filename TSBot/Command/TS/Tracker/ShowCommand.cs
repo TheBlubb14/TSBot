@@ -21,7 +21,7 @@ namespace TSBot.Command.TS.Tracker
             {
                 var user = db.TSUser.Find(msg.InvokerUid);
 
-                if (user == null)
+                if (user is null)
                     user = db.TSUser.Add(new TSUser(msg.InvokerUid, msg.InvokerName)).Entity;
 
                 if (user.Accepted)

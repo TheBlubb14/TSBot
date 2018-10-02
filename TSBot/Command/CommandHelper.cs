@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using TSBot.Command.Telegram;
 using TSBot.Command.TS;
 
 namespace TSBot.Command
@@ -12,17 +13,11 @@ namespace TSBot.Command
         private static string GetCommandIdentifier<T>() where T : ICommand
         {
             if (typeof(T) == typeof(ITSCommand))
-            {
                 return "!";
-            }
-            //else if(typeof(T) == typeof(ITelegramCommand))
-            //{
-            //    return "/";
-            //}
+            else if (typeof(T) == typeof(ITelegramCommand))
+                return "/";
             else
-            {
                 return null;
-            }
         }
 
         public static string BuildCommand<T>(this T t) where T : ICommand

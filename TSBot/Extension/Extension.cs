@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace TSBot
+namespace TSBot.Extension
 {
     public static class Extension
     {

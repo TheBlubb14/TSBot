@@ -16,7 +16,7 @@ namespace TSBot.Command.TS.Tracker
             {
                 var user = db.TSUser.Find(msg.InvokerUid);
 
-                if (user == null)
+                if (user is null)
                     return;
 
                 if (user.Accepted)
